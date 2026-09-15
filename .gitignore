@@ -7,9 +7,17 @@ out-tsc
 *.tsbuildinfo
 .expo
 .expo-shared
+build/
 
 # dependencies
 node_modules
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
 
 # IDEs and editors
 /.idea
@@ -47,3 +55,32 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Flutter / Android
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+android/.gradle/
+android/local.properties
+android/key.properties
+*.keystore
+*.jks
+
+# Local data and generated media
+*.sqlite
+*.db
+data/
+camera-captures/
+raw-frames/
+
+# Replit-local conversation state
+.conversation/
