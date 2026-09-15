@@ -1,0 +1,1 @@
+- [GitHub publishing](github-publishing.md) — connector writes ordinary files, but verify remote state because Git Data and workflow paths may be blocked.
