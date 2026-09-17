@@ -12,10 +12,12 @@ The project is built as one demonstrable loop, not as disconnected model demos.
 
 ## Phase 2 — mobile camera foundation
 
-- [ ] Create the minimal Flutter Android app
-- [ ] Add onboarding and explicit permission flow
-- [ ] Add accessible home screen
-- [ ] Add Start Assistance / Stop Assistance states
+- [x] Create the Flutter/Dart app shell
+- [ ] Generate the Android runner and verify it on a device
+- [x] Add onboarding and safety notice
+- [x] Add accessible home screen
+- [x] Add Start Assistance / Stop Assistance shell states
+- [ ] Add explicit camera permission flow
 - [ ] Capture test frames without storing raw video
 
 ## Phase 3 — AI inference
