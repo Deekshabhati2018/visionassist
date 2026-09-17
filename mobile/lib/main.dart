@@ -1,11 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import 'camera_service.dart';
 
 void main() {
   runApp(const VisionAssistApp());
 }
 
 class VisionAssistApp extends StatelessWidget {
-  const VisionAssistApp({super.key});
+  const VisionAssistApp({
+    super.key,
+    this.cameraService = const FlutterCameraService(),
+  });
+
+  final CameraService cameraService;
 
   @override
   Widget build(BuildContext context) {
@@ -20,13 +29,18 @@ class VisionAssistApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF7F9FC),
         useMaterial3: true,
       ),
-      home: const OnboardingScreen(),
+      home: OnboardingScreen(cameraService: cameraService),
     );
   }
 }
 
 class OnboardingScreen extends StatelessWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({
+    super.key,
+    required this.cameraService,
+  });
+
+  final CameraService cameraService;
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +106,9 @@ class OnboardingScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute<void>(
-                          builder: (_) => const AssistanceHomeScreen(),
+                          builder: (_) => AssistanceHomeScreen(
+                            cameraService: cameraService,
+                          ),
                         ),
                       );
                     },
@@ -113,28 +129,228 @@ class OnboardingScreen extends StatelessWidget {
 }
 
 class AssistanceHomeScreen extends StatefulWidget {
-  const AssistanceHomeScreen({super.key});
+  const AssistanceHomeScreen({
+    super.key,
+    required this.cameraService,
+  });
+
+  final CameraService cameraService;
 
   @override
   State<AssistanceHomeScreen> createState() => _AssistanceHomeScreenState();
 }
 
-class _AssistanceHomeScreenState extends State<AssistanceHomeScreen> {
-  bool _isAssistanceActive = false;
+enum AssistanceState { off, starting, active, error }
 
-  void _toggleAssistance() {
+class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
+    with WidgetsBindingObserver {
+  AssistanceState _assistanceState = AssistanceState.off;
+  CameraSession? _cameraSession;
+  String? _cameraMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    final session = _cameraSession;
+    _cameraSession = null;
+    if (session != null) {
+      unawaited(session.dispose());
+    }
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_assistanceState != AssistanceState.active) {
+      return;
+    }
+
+    final session = _cameraSession;
+    if (session == null) {
+      return;
+    }
+
+    unawaited(_refreshCameraLifecycle(session, state));
+  }
+
+  Future<void> _refreshCameraLifecycle(
+    CameraSession session,
+    AppLifecycleState state,
+  ) async {
+    try {
+      await session.handleLifecycle(state);
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _assistanceState = AssistanceState.error;
+          _cameraMessage =
+              'The camera stopped while the app changed state. Try starting assistance again.';
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleAssistance() async {
+    if (_assistanceState == AssistanceState.active) {
+      await _stopAssistance();
+      return;
+    }
+
+    if (_assistanceState == AssistanceState.starting) {
+      return;
+    }
+
     setState(() {
-      _isAssistanceActive = !_isAssistanceActive;
+      _assistanceState = AssistanceState.starting;
+      _cameraMessage = null;
     });
+
+    try {
+      final session = await widget.cameraService.open();
+      if (!mounted) {
+        await session.dispose();
+        return;
+      }
+
+      setState(() {
+        _cameraSession = session;
+        _assistanceState = AssistanceState.active;
+      });
+    } on CameraStartException catch (error) {
+      if (mounted) {
+        setState(() {
+          _assistanceState = AssistanceState.error;
+          _cameraMessage = error.message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _assistanceState = AssistanceState.error;
+          _cameraMessage =
+              'The camera could not be started. Check the device and try again.';
+        });
+      }
+    }
+  }
+
+  Future<void> _stopAssistance() async {
+    final session = _cameraSession;
+    _cameraSession = null;
+    setState(() {
+      _assistanceState = AssistanceState.off;
+      _cameraMessage = null;
+    });
+    await session?.dispose();
+  }
+
+  String get _statusText {
+    switch (_assistanceState) {
+      case AssistanceState.off:
+        return 'Assistance is off';
+      case AssistanceState.starting:
+        return 'Preparing camera access';
+      case AssistanceState.active:
+        return 'Assistance is active';
+      case AssistanceState.error:
+        return 'Camera access needs attention';
+    }
+  }
+
+  Color _statusColor(BuildContext context) {
+    switch (_assistanceState) {
+      case AssistanceState.off:
+        return const Color(0xFF475467);
+      case AssistanceState.starting:
+        return Theme.of(context).colorScheme.primary;
+      case AssistanceState.active:
+        return const Color(0xFF067647);
+      case AssistanceState.error:
+        return Theme.of(context).colorScheme.error;
+    }
+  }
+
+  String get _descriptionText {
+    switch (_assistanceState) {
+      case AssistanceState.off:
+        return 'Start an assistance session when you are ready.';
+      case AssistanceState.starting:
+        return 'Requesting camera permission and preparing the live preview.';
+      case AssistanceState.active:
+        return 'The live camera preview is active. AI detection and spoken alerts are next milestones.';
+      case AssistanceState.error:
+        return 'Assistance did not start. Read the camera message below and try again.';
+    }
+  }
+
+  String get _buttonLabel {
+    switch (_assistanceState) {
+      case AssistanceState.off:
+      case AssistanceState.error:
+        return 'Start Assistance';
+      case AssistanceState.starting:
+        return 'Starting…';
+      case AssistanceState.active:
+        return 'Stop Assistance';
+    }
+  }
+
+  Widget _buildPreviewPanel(BuildContext context) {
+    final session = _cameraSession;
+    if (session == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Live camera preview',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            Semantics(
+              image: true,
+              label:
+                  'Live camera preview. VisionAssist does not save raw camera video by default.',
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 3 / 4,
+                  child: ColoredBox(
+                    color: Colors.black,
+                    child: session.buildPreview(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'The preview is used for the upcoming AI connection. Raw camera video is not saved by this app shell.',
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusText =
-        _isAssistanceActive ? 'Assistance is active' : 'Assistance is off';
-    final statusColor =
-        _isAssistanceActive ? const Color(0xFF067647) : const Color(0xFF475467);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('VisionAssist'),
@@ -146,22 +362,33 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen> {
           children: [
             Semantics(
               liveRegion: true,
-              label: statusText,
+              label: _statusText,
               child: Text(
-                statusText,
+                _statusText,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: statusColor,
+                      color: _statusColor(context),
                       fontWeight: FontWeight.w700,
                     ),
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              _isAssistanceActive
-                  ? 'The assistance session is ready for the camera and AI connection milestone.'
-                  : 'Start an assistance session when you are ready.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
+            Text(_descriptionText, style: Theme.of(context).textTheme.bodyLarge),
+            if (_cameraMessage != null) ...[
+              const SizedBox(height: 16),
+              Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Semantics(
+                    liveRegion: true,
+                    label: 'Camera message: $_cameraMessage',
+                    child: Text(_cameraMessage!),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            _buildPreviewPanel(context),
             const SizedBox(height: 24),
             Card(
               child: Padding(
@@ -177,8 +404,10 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen> {
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'This shell validates the accessible app flow. Camera permission, live frames, AI detection, and spoken alerts will be connected in the next milestones.',
+                    Text(
+                      _assistanceState == AssistanceState.active
+                          ? 'The camera preview is connected. AI inference, prioritization, and spoken alerts will be connected in later milestones.'
+                          : 'This milestone adds explicit camera access and a live preview without storing raw video.',
                     ),
                   ],
                 ),
@@ -187,26 +416,24 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen> {
             const SizedBox(height: 32),
             Semantics(
               button: true,
-              label: _isAssistanceActive
-                  ? 'Stop assistance'
-                  : 'Start assistance',
-              hint: _isAssistanceActive
+              label: _buttonLabel,
+              hint: _assistanceState == AssistanceState.active
                   ? 'Ends the current assistance session'
-                  : 'Starts the current assistance session',
+                  : 'Requests camera access and starts the current assistance session',
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _toggleAssistance,
+                  onPressed: _assistanceState == AssistanceState.starting
+                      ? null
+                      : _toggleAssistance,
                   icon: Icon(
-                    _isAssistanceActive ? Icons.stop : Icons.play_arrow,
+                    _assistanceState == AssistanceState.active
+                        ? Icons.stop
+                        : Icons.play_arrow,
                   ),
                   label: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Text(
-                      _isAssistanceActive
-                          ? 'Stop Assistance'
-                          : 'Start Assistance',
-                    ),
+                    child: Text(_buttonLabel),
                   ),
                 ),
               ),
