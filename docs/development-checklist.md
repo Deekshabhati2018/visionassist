@@ -10,6 +10,17 @@
 - [x] Milestone roadmap exists
 - [ ] Local toolchain verification is complete
 
+## Mobile shell milestone
+
+- [x] Flutter app package and Dart entry point exist
+- [x] Onboarding includes prototype safety language
+- [x] Assistance start/stop state is accessible
+- [x] Widget test covers the primary state transition
+- [ ] Android runner generated with the local Flutter SDK
+- [ ] `flutter analyze` passes on the Windows development machine
+- [ ] `flutter test` passes on the Windows development machine
+- [ ] App runs on an Android emulator or physical device
+
 ## Per-milestone quality gate
 
 - [ ] The milestone has one clear user-visible or engineering outcome
