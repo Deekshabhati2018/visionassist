@@ -9,17 +9,24 @@ Implemented:
 - safety-aware onboarding screen
 - accessible home screen
 - large Start Assistance / Stop Assistance controls
-- explicit prototype messaging before camera integration
-- widget tests for the onboarding and assistance state flow
+- explicit camera permission request when assistance starts
+- live camera preview with back-camera selection
+- camera lifecycle cleanup when the app is paused or stopped
+- clear denied, blocked, unavailable, and restricted camera states
+- widget tests for the onboarding, preview, and denial flows
 
 Not implemented yet:
 
-- camera permission
-- live camera preview
 - AI inference
 - text-to-speech
 
-Those are separate milestones so each integration can be tested on a real Android device instead of being hidden behind a simulated screen.
+The camera milestone uses the official Flutter `camera` plugin. Version
+`0.11.2+1` is the compatible release range for this project's declared Dart
+3.7 / Flutter 3.29 baseline. Newer plugin releases may require a newer local
+Flutter SDK.
+
+This milestone only displays a live preview. It does not capture, save, or
+upload raw camera video.
 
 ## Run locally on Windows
 
@@ -46,3 +53,15 @@ flutter run
 ```
 
 If `flutter create` asks before updating an existing file, keep the existing `lib/main.dart` from this repository.
+
+## Camera testing checklist
+
+On a physical Android phone:
+
+1. Start the app and tap Continue.
+2. Tap Start Assistance.
+3. Allow camera access when Android asks.
+4. Confirm the live preview appears and the status says `Assistance is active`.
+5. Tap Stop Assistance and confirm the preview closes.
+6. Deny camera access and confirm the app explains how to enable it in Android settings.
+7. Background and resume the app while assistance is active and confirm the preview recovers.
