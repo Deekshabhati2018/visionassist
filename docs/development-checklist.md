@@ -16,10 +16,24 @@
 - [x] Onboarding includes prototype safety language
 - [x] Assistance start/stop state is accessible
 - [x] Widget test covers the primary state transition
-- [ ] Android runner generated with the local Flutter SDK
+- [x] Android runner generated with the local Flutter SDK
 - [ ] `flutter analyze` passes on the Windows development machine
 - [ ] `flutter test` passes on the Windows development machine
-- [ ] App runs on an Android emulator or physical device
+- [x] App shell runs on a physical Android device
+
+## Mobile camera milestone
+
+- [x] Camera dependency and platform abstraction are documented
+- [x] Camera permission is requested when assistance starts
+- [x] Live preview uses the back camera when available
+- [x] Preview stops when assistance stops
+- [x] Preview controller is released when the app is paused
+- [x] Denied and unavailable camera states have user-facing messages
+- [x] Widget tests cover successful preview setup and camera denial
+- [ ] `flutter pub get` passes on the Windows development machine
+- [ ] `flutter analyze` passes on the Windows development machine
+- [ ] `flutter test` passes on the Windows development machine
+- [ ] Permission denial and app resume are verified on a physical device
 
 ## Per-milestone quality gate
 
