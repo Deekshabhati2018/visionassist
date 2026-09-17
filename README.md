@@ -26,7 +26,7 @@ Start Assistance -> test frame -> detection -> priority decision
 
 | Area | Purpose | Status |
 | --- | --- | --- |
-| `mobile/` | Flutter Android application | Foundation placeholder |
+| `mobile/` | Flutter Android application | Shell + camera preview milestone |
 | `ai-service/` | Python computer-vision service | Foundation placeholder |
 | `backend/` | Spring Boot API | Foundation placeholder |
 | `web-dashboard/` | React dashboard | Foundation placeholder |
