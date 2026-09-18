@@ -20,10 +20,15 @@ Not implemented yet:
 - AI inference
 - text-to-speech
 
-The camera milestone uses the official Flutter `camera` plugin. Version
-`0.11.2+1` is the compatible release range for this project's declared Dart
-3.7 / Flutter 3.29 baseline. Newer plugin releases may require a newer local
-Flutter SDK.
+The camera milestone uses the official Flutter `camera` plugin at version
+`0.12.1`. It resolves to `camera_android_camerax 0.7.4+8`, which uses the
+CameraX 1.6.2 line and includes the fix for
+`CallbackToFutureAdapter` missing during Java compilation.
+
+The previous `camera 0.11.4` / `camera_android_camerax 0.6.30` combination
+used CameraX 1.5.3 and could fail with
+`camera_android_camerax:compileDebugJavaWithJavac`. Do not downgrade the
+CameraX implementation back to that combination.
 
 This milestone only displays a live preview. It does not capture, save, or
 upload raw camera video.
@@ -53,6 +58,21 @@ flutter run
 ```
 
 If `flutter create` asks before updating an existing file, keep the existing `lib/main.dart` from this repository.
+
+## Android build verification
+
+After changing the camera dependency line, refresh the generated Android
+artifacts before building:
+
+```powershell
+flutter clean
+flutter pub get
+flutter build apk --debug
+```
+
+The Android runner is generated locally by Flutter. This repository keeps the
+Flutter source and dependency configuration; it does not commit generated
+Android runner files.
 
 ## Camera testing checklist
 
