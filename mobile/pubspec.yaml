@@ -4,16 +4,21 @@ publish_to: "none"
 version: 0.1.0+1
 
 environment:
-  sdk: ">=3.7.0 <4.0.0"
+  sdk: ">=3.12.0 <4.0.0"
 
 dependencies:
-  camera: ^0.11.2+1
+  camera: 0.12.1
   flutter:
     sdk: flutter
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+dependency_overrides:
+  # camera 0.12.1 supports the CameraX implementation line that contains the
+  # CallbackToFutureAdapter compile-classpath fix.
+  camera_android_camerax: 0.7.4+8
 
 flutter:
   uses-material-design: true
