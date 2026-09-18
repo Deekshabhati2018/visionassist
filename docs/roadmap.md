@@ -19,6 +19,7 @@ The project is built as one demonstrable loop, not as disconnected model demos.
 - [x] Add Start Assistance / Stop Assistance shell states
 - [x] Add explicit camera permission flow
 - [x] Add live camera preview without storing raw video
+- [x] Pin the CameraX implementation to a release with the compile-classpath fix
 - [ ] Verify denied, blocked, and resume camera states on a physical device
 - [ ] Capture test frames without storing raw video
 
