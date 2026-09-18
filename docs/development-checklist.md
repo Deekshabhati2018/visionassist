@@ -24,6 +24,7 @@
 ## Mobile camera milestone
 
 - [x] Camera dependency and platform abstraction are documented
+- [x] CameraX compile-classpath dependency is pinned to a fixed plugin release
 - [x] Camera permission is requested when assistance starts
 - [x] Live preview uses the back camera when available
 - [x] Preview stops when assistance stops
@@ -33,6 +34,7 @@
 - [ ] `flutter pub get` passes on the Windows development machine
 - [ ] `flutter analyze` passes on the Windows development machine
 - [ ] `flutter test` passes on the Windows development machine
+- [ ] `flutter build apk --debug` passes after refreshing Android dependencies
 - [ ] Permission denial and app resume are verified on a physical device
 
 ## Per-milestone quality gate
