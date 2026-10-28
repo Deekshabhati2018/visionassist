@@ -45,13 +45,16 @@ After each installation, run only the verification command in the table above. K
 
 ## 4. Device readiness
 
-Before the camera milestone:
+For camera-to-AI testing:
 
 - Enable Android developer options and USB debugging on a test device.
 - Connect the device with a USB cable or start an emulator.
 - Run `adb devices`.
 - Confirm the device is authorized.
 - Do not use a real user's face or private environment for the initial test dataset.
+- Start the AI service using [`ai-service/README.md`](../ai-service/README.md).
+- Configure the app's `VISIONASSIST_AI_BASE_URL` for the emulator or trusted LAN.
+- Use HTTPS for remote testing; the local development server has no authentication.
 
 ## 5. Environment variables
 
