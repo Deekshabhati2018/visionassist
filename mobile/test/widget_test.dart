@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:visionassist_mobile/camera_service.dart';
@@ -27,6 +29,7 @@ void main() {
     expect(find.text('Assistance is active'), findsOneWidget);
     expect(find.text('Stop Assistance'), findsOneWidget);
     expect(find.text('Live camera preview'), findsOneWidget);
+    expect(find.text('Analyze Current Frame'), findsOneWidget);
   });
 
   testWidgets('camera denial is explained without activating assistance', (
@@ -78,6 +81,11 @@ class FakeCameraSession implements CameraSession {
 
   @override
   Widget buildPreview() => const ColoredBox(color: Color(0xFF1D2939));
+
+  @override
+  Future<Uint8List> captureJpeg() async {
+    throw UnsupportedError('The camera test does not capture image frames.');
+  }
 
   @override
   Future<void> handleLifecycle(AppLifecycleState state) async {}
