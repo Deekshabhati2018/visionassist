@@ -37,6 +37,18 @@
 - [ ] `flutter build apk --debug` passes after refreshing Android dependencies
 - [ ] Permission denial and app resume are verified on a physical device
 
+## AI detection milestone
+
+- [x] Python service health endpoint and model readiness state exist
+- [x] Pretrained ONNX detector produces real object detections
+- [x] Versioned detection response has validated bounding-box bounds
+- [x] API rejects unsupported image types and malformed image bytes
+- [x] Flutter sends a single temporary JPEG per explicit user action
+- [x] Flutter validates the response and displays loading, errors, empty results, and detections
+- [x] No raw frame is persisted by the mobile client or AI service
+- [ ] Flutter analyze and widget tests pass on the Windows development machine
+- [ ] One-shot camera-to-AI flow is verified on the physical Android phone
+
 ## Per-milestone quality gate
 
 - [ ] The milestone has one clear user-visible or engineering outcome

@@ -27,7 +27,7 @@ Start Assistance -> test frame -> detection -> priority decision
 | Area | Purpose | Status |
 | --- | --- | --- |
 | `mobile/` | Flutter Android application | Shell + camera preview milestone |
-| `ai-service/` | Python computer-vision service | Foundation placeholder |
+| `ai-service/` | Python computer-vision service | Pretrained detection endpoint |
 | `backend/` | Spring Boot API | Foundation placeholder |
 | `web-dashboard/` | React dashboard | Foundation placeholder |
 | `infra/` | Docker and local infrastructure | Foundation placeholder |
@@ -46,6 +46,11 @@ pnpm run build
 ```
 
 The current API health check is available through the preview at `GET /api/healthz`.
+
+The pretrained object detector and its `POST /inference/detect` contract are
+documented in [`ai-service/README.md`](ai-service/README.md). It can run locally
+on a development computer and accept one camera frame at a time from the
+Android app.
 
 ## Getting started
 

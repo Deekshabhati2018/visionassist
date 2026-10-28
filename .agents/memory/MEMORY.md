@@ -1,1 +1,2 @@
 - [GitHub publishing](github-publishing.md) — connector writes ordinary files, but verify remote state because Git Data and workflow paths may be blocked.
+- [VisionAssist delivery pace](visionassist-delivery-pace.md) — when the user asks to continue building, implement the requested milestone now instead of deferring it.

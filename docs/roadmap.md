@@ -25,10 +25,11 @@ The project is built as one demonstrable loop, not as disconnected model demos.
 
 ## Phase 3 — AI inference
 
-- [ ] Create the Python service and isolated environment
-- [ ] Add health endpoint
-- [ ] Add pretrained object detection
-- [ ] Define stable detection response schema
+- [x] Create the Python service and isolated environment
+- [x] Add health endpoint
+- [x] Add pretrained object detection
+- [x] Define stable detection response schema
+- [x] Connect mobile frame capture to one-shot AI inference
 - [ ] Benchmark latency, FPS, and confidence
 
 ## Phase 4 — context and prioritization
