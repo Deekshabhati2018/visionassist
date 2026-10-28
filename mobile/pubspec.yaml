@@ -10,6 +10,7 @@ dependencies:
   camera: 0.12.1
   flutter:
     sdk: flutter
+  http: 1.6.0
 
 dev_dependencies:
   flutter_test:
