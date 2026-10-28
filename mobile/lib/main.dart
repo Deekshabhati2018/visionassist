@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'camera_service.dart';
+import 'detection_service.dart';
 
 void main() {
   runApp(const VisionAssistApp());
@@ -12,9 +13,11 @@ class VisionAssistApp extends StatelessWidget {
   const VisionAssistApp({
     super.key,
     this.cameraService = const FlutterCameraService(),
+    this.detectionService = const DetectionService(),
   });
 
   final CameraService cameraService;
+  final DetectionService detectionService;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +32,10 @@ class VisionAssistApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF7F9FC),
         useMaterial3: true,
       ),
-      home: OnboardingScreen(cameraService: cameraService),
+      home: OnboardingScreen(
+        cameraService: cameraService,
+        detectionService: detectionService,
+      ),
     );
   }
 }
@@ -38,9 +44,11 @@ class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({
     super.key,
     required this.cameraService,
+    required this.detectionService,
   });
 
   final CameraService cameraService;
+  final DetectionService detectionService;
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +116,7 @@ class OnboardingScreen extends StatelessWidget {
                         MaterialPageRoute<void>(
                           builder: (_) => AssistanceHomeScreen(
                             cameraService: cameraService,
+                            detectionService: detectionService,
                           ),
                         ),
                       );
@@ -132,9 +141,11 @@ class AssistanceHomeScreen extends StatefulWidget {
   const AssistanceHomeScreen({
     super.key,
     required this.cameraService,
+    required this.detectionService,
   });
 
   final CameraService cameraService;
+  final DetectionService detectionService;
 
   @override
   State<AssistanceHomeScreen> createState() => _AssistanceHomeScreenState();
@@ -147,6 +158,9 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
   AssistanceState _assistanceState = AssistanceState.off;
   CameraSession? _cameraSession;
   String? _cameraMessage;
+  String? _detectionMessage;
+  DetectionResult? _detectionResult;
+  bool _isAnalyzing = false;
 
   @override
   void initState() {
@@ -249,8 +263,65 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
     setState(() {
       _assistanceState = AssistanceState.off;
       _cameraMessage = null;
+      _detectionMessage = null;
+      _detectionResult = null;
+      _isAnalyzing = false;
     });
     await session?.dispose();
+  }
+
+  Future<void> _analyzeCurrentFrame() async {
+    final session = _cameraSession;
+    if (session == null || _isAnalyzing) {
+      return;
+    }
+
+    setState(() {
+      _isAnalyzing = true;
+      _detectionMessage = null;
+      _detectionResult = null;
+    });
+
+    try {
+      final jpegBytes = await session.captureJpeg();
+      if (!mounted || _assistanceState != AssistanceState.active) {
+        return;
+      }
+
+      final result = await widget.detectionService.analyze(jpegBytes);
+      if (!mounted || _assistanceState != AssistanceState.active) {
+        return;
+      }
+
+      setState(() {
+        _detectionResult = result;
+      });
+    } on CameraStartException catch (error) {
+      if (mounted) {
+        setState(() {
+          _detectionMessage = error.message;
+        });
+      }
+    } on DetectionServiceException catch (error) {
+      if (mounted) {
+        setState(() {
+          _detectionMessage = error.message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _detectionMessage =
+              'Could not analyze this frame. Check camera access and the AI service connection.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAnalyzing = false;
+        });
+      }
+    }
   }
 
   String get _statusText {
@@ -286,7 +357,7 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
       case AssistanceState.starting:
         return 'Requesting camera permission and preparing the live preview.';
       case AssistanceState.active:
-        return 'The live camera preview is active. AI detection and spoken alerts are next milestones.';
+        return 'The live camera preview is active. Analyze one frame to identify nearby objects.';
       case AssistanceState.error:
         return 'Assistance did not start. Read the camera message below and try again.';
     }
@@ -341,7 +412,7 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
             ),
             const SizedBox(height: 12),
             const Text(
-              'The preview is used for the upcoming AI connection. Raw camera video is not saved by this app shell.',
+              'Analyze Current Frame sends one temporary JPEG to the pretrained detector. Camera images are not retained.',
             ),
           ],
         ),
@@ -389,6 +460,58 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
             ],
             const SizedBox(height: 24),
             _buildPreviewPanel(context),
+            if (_cameraSession != null) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _isAnalyzing ? null : _analyzeCurrentFrame,
+                  icon: _isAnalyzing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.search),
+                  label: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: Text(
+                      _isAnalyzing
+                          ? 'Analyzing frame…'
+                          : 'Analyze Current Frame',
+                    ),
+                  ),
+                ),
+              ),
+              if (_detectionMessage != null) ...[
+                const SizedBox(height: 12),
+                Card(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Semantics(
+                      liveRegion: true,
+                      label: 'AI service message: $_detectionMessage',
+                      child: Text(_detectionMessage!),
+                    ),
+                  ),
+                ),
+              ],
+              if (_isAnalyzing) ...[
+                const SizedBox(height: 12),
+                const Semantics(
+                  liveRegion: true,
+                  label: 'Analyzing the captured frame with the AI service.',
+                  child: Text(
+                    'Sending one captured frame to the detector. The first request may take longer while the model loads.',
+                  ),
+                ),
+              ],
+              if (_detectionResult != null) ...[
+                const SizedBox(height: 12),
+                _buildDetectionResults(context, _detectionResult!),
+              ],
+            ],
             const SizedBox(height: 24),
             Card(
               child: Padding(
@@ -406,7 +529,7 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
                     const SizedBox(height: 12),
                     Text(
                       _assistanceState == AssistanceState.active
-                          ? 'The camera preview is connected. AI inference, prioritization, and spoken alerts will be connected in later milestones.'
+                          ? 'A pretrained detector can analyze one captured frame when you request it. Continuous monitoring, prioritization, and spoken alerts are not enabled yet.'
                           : 'This milestone adds explicit camera access and a live preview without storing raw video.',
                     ),
                   ],
@@ -437,6 +560,56 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
                   ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetectionResults(
+    BuildContext context,
+    DetectionResult result,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'AI frame analysis',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${result.detections.length} objects found · ${result.inferenceMs.toStringAsFixed(0)} ms · ${result.model}',
+            ),
+            const SizedBox(height: 12),
+            if (result.detections.isEmpty)
+              const Text('No objects detected in this frame.')
+            else
+              ...result.detections.take(8).map(
+                    (detection) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.visibility_outlined),
+                      title: Text(detection.label),
+                      subtitle: Text(
+                        '${(detection.confidence * 100).toStringAsFixed(0)}% confidence',
+                      ),
+                      trailing: Text(
+                        'x ${detection.boundingBox.xMin.toStringAsFixed(0)}–${detection.boundingBox.xMax.toStringAsFixed(0)}\n'
+                        'y ${detection.boundingBox.yMin.toStringAsFixed(0)}–${detection.boundingBox.yMax.toStringAsFixed(0)}',
+                        textAlign: TextAlign.end,
+                      ),
+                    ),
+                  ),
+            const SizedBox(height: 8),
+            const Text(
+              'Model predictions can be wrong. Do not use them as a guarantee of safe passage.',
             ),
           ],
         ),
