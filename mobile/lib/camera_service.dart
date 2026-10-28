@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:camera/camera.dart' as camera;
 import 'package:flutter/material.dart';
 
@@ -13,6 +15,8 @@ abstract interface class CameraSession {
   bool get isInitialized;
 
   Widget buildPreview();
+
+  Future<Uint8List> captureJpeg();
 
   Future<void> handleLifecycle(AppLifecycleState state);
 
@@ -98,6 +102,23 @@ class FlutterCameraSession implements CameraSession {
     }
 
     return camera.CameraPreview(controller);
+  }
+
+  @override
+  Future<Uint8List> captureJpeg() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      throw const CameraStartException(
+        'The camera is not ready. Wait for the preview, then try again.',
+      );
+    }
+
+    final image = await controller.takePicture();
+    try {
+      return await image.readAsBytes();
+    } finally {
+      await image.delete();
+    }
   }
 
   @override
