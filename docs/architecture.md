@@ -91,14 +91,18 @@ The implementation must also apply alert cooldowns and persistence windows. It m
 
 ### AI service API
 
-- `POST /inference/detect`
+- `POST /inference/detect` — one JPEG/PNG/WebP request body, versioned detections in pixel coordinates
 - `POST /inference/depth`
 - `POST /inference/ocr`
 - `POST /inference/scene`
 - `POST /decision/evaluate`
-- `GET /health`
+- `GET /health` — model readiness
+- `GET /openapi.json` — generated AI-service contract
 
-The current workspace OpenAPI contract only contains the health endpoint. We will expand it when the first real backend contract is implemented, then regenerate clients before using new generated types.
+The AI service currently generates its own OpenAPI contract from its validated
+FastAPI response models. The shared workspace OpenAPI contract is still for
+the Express/Spring-style mobile backend and will be expanded as that backend
+is implemented.
 
 ## Privacy and safety constraints
 
