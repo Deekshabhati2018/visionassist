@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -17,14 +18,50 @@ class DetectionServiceException implements Exception {
   String toString() => message;
 }
 
-class DetectionService {
-  const DetectionService({
-    this.baseUrl = defaultAiServiceUrl,
+class DetectionRequestCancelled implements Exception {
+  const DetectionRequestCancelled();
+}
+
+class AiServiceHealth {
+  const AiServiceHealth({
+    required this.modelLoaded,
+    required this.model,
+    this.detail,
   });
 
-  final String baseUrl;
+  final bool modelLoaded;
+  final String model;
+  final String? detail;
+}
 
+abstract interface class DetectionClient {
+  Future<DetectionResult> analyze(
+    Uint8List jpegBytes, {
+    Future<void>? abortTrigger,
+  });
+
+  Future<AiServiceHealth> checkHealth({Future<void>? abortTrigger});
+
+  void close();
+}
+
+class DetectionService implements DetectionClient {
+  DetectionService({
+    this.baseUrl = defaultAiServiceUrl,
+    http.Client? client,
+    this.requestTimeout = const Duration(seconds: 90),
+    this.healthTimeout = const Duration(seconds: 5),
+  }) : _client = client ?? http.Client();
+
+  final String baseUrl;
+  final http.Client _client;
+  final Duration requestTimeout;
+  final Duration healthTimeout;
+  bool _closed = false;
+
+  @override
   Future<DetectionResult> analyze(Uint8List jpegBytes) async {
+    _ensureOpen();
     if (jpegBytes.isEmpty) {
       throw const DetectionServiceException(
         'The camera returned an empty frame. Try again.',
@@ -40,13 +77,14 @@ class DetectionService {
 
     try {
       final endpoint = Uri.parse('$normalizedBaseUrl/inference/detect');
-      final response = await http
-          .post(
-            endpoint,
-            headers: const {'Content-Type': 'image/jpeg'},
-            body: jpegBytes,
-          )
-          .timeout(const Duration(seconds: 90));
+      final request = http.AbortableRequest(
+        'POST',
+        endpoint,
+        abortTrigger: abortTrigger,
+      )
+        ..headers['Content-Type'] = 'image/jpeg'
+        ..bodyBytes = jpegBytes;
+      final response = await _send(request, timeout: requestTimeout);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final detail = _readErrorDetail(response.body);
@@ -69,6 +107,12 @@ class DetectionService {
       }
     } on DetectionServiceException {
       rethrow;
+    } on http.RequestAbortedException {
+      throw const DetectionRequestCancelled();
+    } on TimeoutException {
+      throw const DetectionServiceException(
+        'The AI request timed out. Check the service connection and try again.',
+      );
     } on http.ClientException {
       throw DetectionServiceException(
         'Could not reach the AI service at $baseUrl. Confirm the service is running and the phone can reach that address.',
@@ -84,6 +128,85 @@ class DetectionService {
     }
   }
 
+  @override
+  Future<AiServiceHealth> checkHealth({Future<void>? abortTrigger}) async {
+    _ensureOpen();
+    final normalizedBaseUrl = baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    try {
+      final request = http.AbortableRequest(
+        'GET',
+        Uri.parse('$normalizedBaseUrl/health'),
+        abortTrigger: abortTrigger,
+      );
+      final response = await _send(request, timeout: healthTimeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final detail = _readErrorDetail(response.body);
+        throw DetectionServiceException(
+          detail ?? 'The AI service health check failed (${response.statusCode}).',
+        );
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('The health response must be a JSON object.');
+      }
+      final status = decoded['status'];
+      final modelLoaded = decoded['model_loaded'];
+      final model = decoded['model'];
+      final detail = decoded['detail'];
+      if ((status != 'ok' && status != 'degraded') ||
+          modelLoaded is! bool ||
+          model is! String ||
+          model.isEmpty ||
+          (detail != null && detail is! String)) {
+        throw const FormatException('The health response has an invalid shape.');
+      }
+      return AiServiceHealth(
+        modelLoaded: modelLoaded,
+        model: model,
+        detail: detail as String?,
+      );
+    } on DetectionServiceException {
+      rethrow;
+    } on http.RequestAbortedException {
+      throw const DetectionRequestCancelled();
+    } on TimeoutException {
+      throw const DetectionServiceException(
+        'The AI service did not respond to its health check. Confirm it is running and reachable.',
+      );
+    } on http.ClientException {
+      throw DetectionServiceException(
+        'Could not reach the AI service at $baseUrl. Confirm the service is running and the phone can reach that address.',
+      );
+    } on FormatException catch (error) {
+      throw DetectionServiceException(
+        'The AI service returned an invalid health response: ${error.message}',
+      );
+    } on Exception {
+      throw DetectionServiceException(
+        'The AI service health check failed. Check the network connection and try again.',
+      );
+    }
+  }
+
+  Future<http.Response> _send(
+    http.AbortableRequest request, {
+    required Duration timeout,
+  }) {
+    return _client
+        .send(request)
+        .then(http.Response.fromStream)
+        .timeout(timeout);
+  }
+
+  void _ensureOpen() {
+    if (_closed) {
+      throw const DetectionServiceException(
+        'The AI service client has been closed.',
+      );
+    }
+  }
+
   String? _readErrorDetail(String body) {
     try {
       final decoded = jsonDecode(body);
@@ -94,6 +217,15 @@ class DetectionService {
       return null;
     }
     return null;
+  }
+
+  @override
+  void close() {
+    if (_closed) {
+      return;
+    }
+    _closed = true;
+    _client.close();
   }
 }
 
