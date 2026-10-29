@@ -36,6 +36,8 @@ class ModelNotReadyError(RuntimeError):
 class LetterboxResult:
     image: np.ndarray
     scale: float
+    scale_x: float
+    scale_y: float
     pad_x: float
     pad_y: float
 
@@ -66,6 +68,10 @@ class ObjectDetector:
             if iou_threshold is not None
             else float(os.getenv("VISIONASSIST_IOU", "0.45"))
         )
+        if not 0 <= self.confidence_threshold <= 1:
+            raise ValueError("VISIONASSIST_CONFIDENCE must be between 0 and 1.")
+        if not 0 <= self.iou_threshold <= 1:
+            raise ValueError("VISIONASSIST_IOU must be between 0 and 1.")
         self._session: ort.InferenceSession | None = None
         self._load_error: str | None = None
         self._load_lock = threading.Lock()
@@ -99,7 +105,7 @@ class ObjectDetector:
 
         session = self._ensure_session()
         model_input = session.get_inputs()[0]
-        input_tensor = self._prepare_input(
+        input_tensor, letterboxed = self._prepare_input(
             image,
             dtype=np.float16 if model_input.type == "tensor(float16)" else np.float32,
         )
@@ -114,6 +120,7 @@ class ObjectDetector:
             image_height=image.shape[0],
             confidence_threshold=self.confidence_threshold,
             iou_threshold=self.iou_threshold,
+            letterbox_result=letterboxed,
         )
 
         return DetectionResponse(
@@ -162,11 +169,14 @@ class ObjectDetector:
         temporary_path.replace(self.model_path)
 
     @staticmethod
-    def _prepare_input(image: np.ndarray, dtype: np.dtype) -> np.ndarray:
+    def _prepare_input(
+        image: np.ndarray,
+        dtype: np.dtype,
+    ) -> tuple[np.ndarray, LetterboxResult]:
         letterboxed = letterbox(image, MODEL_INPUT_SIZE)
         rgb = cv2.cvtColor(letterboxed.image, cv2.COLOR_BGR2RGB)
         tensor = rgb.transpose(2, 0, 1).astype(dtype) / 255.0
-        return np.expand_dims(tensor, axis=0)
+        return np.expand_dims(tensor, axis=0), letterboxed
 
 
 def letterbox(image: np.ndarray, size: int) -> LetterboxResult:
@@ -176,12 +186,17 @@ def letterbox(image: np.ndarray, size: int) -> LetterboxResult:
     resized_height = max(1, round(height * scale))
     resized = cv2.resize(image, (resized_width, resized_height))
     canvas = np.full((size, size, 3), 114, dtype=np.uint8)
-    pad_x = (size - resized_width) / 2
-    pad_y = (size - resized_height) / 2
-    left = int(round(pad_x - 0.1))
-    top = int(round(pad_y - 0.1))
+    left = int(round((size - resized_width) / 2 - 0.1))
+    top = int(round((size - resized_height) / 2 - 0.1))
     canvas[top : top + resized_height, left : left + resized_width] = resized
-    return LetterboxResult(canvas, scale, pad_x, pad_y)
+    return LetterboxResult(
+        image=canvas,
+        scale=scale,
+        scale_x=resized_width / width,
+        scale_y=resized_height / height,
+        pad_x=float(left),
+        pad_y=float(top),
+    )
 
 
 def decode_predictions(
@@ -190,39 +205,54 @@ def decode_predictions(
     image_height: int,
     confidence_threshold: float,
     iou_threshold: float,
+    letterbox_result: LetterboxResult | None = None,
 ) -> list[Detection]:
     predictions = np.asarray(raw_output)
     if predictions.ndim == 3:
         predictions = predictions[0]
-    if predictions.ndim != 2 or predictions.shape[1] < 6:
+    expected_columns = 5 + len(COCO_LABELS)
+    if predictions.ndim != 2 or predictions.shape[1] != expected_columns:
         raise ModelNotReadyError("The detector returned an unexpected output shape.")
 
+    finite_rows = np.isfinite(predictions).all(axis=1)
     objectness = predictions[:, 4]
     class_probabilities = predictions[:, 5:]
+    score_values = predictions[:, 4:]
+    valid_scores = np.all((score_values >= 0) & (score_values <= 1), axis=1)
     class_ids = np.argmax(class_probabilities, axis=1)
     confidences = objectness * class_probabilities[
         np.arange(len(class_probabilities)), class_ids
     ]
-    candidate_indexes = np.flatnonzero(confidences >= confidence_threshold)
+    candidate_indexes = np.flatnonzero(
+        finite_rows & valid_scores & (confidences >= confidence_threshold)
+    )
     if len(candidate_indexes) == 0:
         return []
 
-    scale = min(
-        MODEL_INPUT_SIZE / image_width,
-        MODEL_INPUT_SIZE / image_height,
-    )
-    resized_width = image_width * scale
-    resized_height = image_height * scale
-    pad_x = (MODEL_INPUT_SIZE - resized_width) / 2
-    pad_y = (MODEL_INPUT_SIZE - resized_height) / 2
+    if letterbox_result is None:
+        scale = min(
+            MODEL_INPUT_SIZE / image_width,
+            MODEL_INPUT_SIZE / image_height,
+        )
+        resized_width = max(1, round(image_width * scale))
+        resized_height = max(1, round(image_height * scale))
+        pad_x = float(round((MODEL_INPUT_SIZE - resized_width) / 2 - 0.1))
+        pad_y = float(round((MODEL_INPUT_SIZE - resized_height) / 2 - 0.1))
+        scale_x = resized_width / image_width
+        scale_y = resized_height / image_height
+    else:
+        pad_x = letterbox_result.pad_x
+        pad_y = letterbox_result.pad_y
+        scale_x = letterbox_result.scale_x
+        scale_y = letterbox_result.scale_y
 
     candidates: list[tuple[int, float, BoundingBox]] = []
     for index in candidate_indexes:
         center_x, center_y, width, height = predictions[index, :4]
-        x_min = np.clip((center_x - width / 2 - pad_x) / scale, 0, image_width)
-        y_min = np.clip((center_y - height / 2 - pad_y) / scale, 0, image_height)
-        x_max = np.clip((center_x + width / 2 - pad_x) / scale, 0, image_width)
-        y_max = np.clip((center_y + height / 2 - pad_y) / scale, 0, image_height)
+        x_min = np.clip((center_x - width / 2 - pad_x) / scale_x, 0, image_width)
+        y_min = np.clip((center_y - height / 2 - pad_y) / scale_y, 0, image_height)
+        x_max = np.clip((center_x + width / 2 - pad_x) / scale_x, 0, image_width)
+        y_max = np.clip((center_y + height / 2 - pad_y) / scale_y, 0, image_height)
         if x_max <= x_min or y_max <= y_min:
             continue
         candidates.append(

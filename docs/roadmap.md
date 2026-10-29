@@ -30,6 +30,8 @@ The project is built as one demonstrable loop, not as disconnected model demos.
 - [x] Add pretrained object detection
 - [x] Define stable detection response schema
 - [x] Connect mobile frame capture to one-shot AI inference
+- [x] Add bounded, non-overlapping continuous frame sampling
+- [x] Validate input preprocessing, output shape, confidence filtering, and box scaling
 - [ ] Benchmark latency, FPS, and confidence
 
 ## Phase 4 — context and prioritization
@@ -42,10 +44,11 @@ The project is built as one demonstrable loop, not as disconnected model demos.
 
 ## Phase 5 — audio accessibility
 
-- [ ] Add concise message generation
-- [ ] Add mobile text-to-speech
-- [ ] Add repeat suppression and interruption rules
-- [ ] Add accessibility settings for speech rate, verbosity, and vibration
+- [x] Add concise factual scene summaries
+- [x] Add mobile text-to-speech
+- [x] Add identical-summary repeat suppression and speech interruption
+- [x] Add speech rate and volume controls
+- [ ] Add verbosity and vibration preferences
 
 ## Phase 6 — backend and persistence
 
