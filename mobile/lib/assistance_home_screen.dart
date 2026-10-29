@@ -590,9 +590,12 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
         centerTitle: false,
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
             Semantics(
               liveRegion: true,
               label: _sessionStatusText,
@@ -754,7 +757,9 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
                 ),
               ),
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
