@@ -243,6 +243,7 @@ Future<void> _openActiveSession(
 
 Future<void> _tapText(WidgetTester tester, String label) async {
   final finder = find.text(label);
+  await _resetScrollPosition(tester);
   await tester.scrollUntilVisible(
     finder,
     80,
@@ -255,12 +256,22 @@ Future<void> _tapText(WidgetTester tester, String label) async {
 
 Future<void> _expectVisible(WidgetTester tester, String label) async {
   final finder = find.text(label);
+  await _resetScrollPosition(tester);
   await tester.scrollUntilVisible(
     finder,
     80,
     scrollable: find.byType(Scrollable).first,
   );
   await tester.ensureVisible(finder);
+  await tester.pump();
+}
+
+Future<void> _resetScrollPosition(WidgetTester tester) async {
+  final scrollable = find.byType(Scrollable).first;
+  if (scrollable.evaluate().isEmpty) {
+    return;
+  }
+  await tester.drag(scrollable, const Offset(0, 1000));
   await tester.pump();
 }
 
