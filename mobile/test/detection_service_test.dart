@@ -127,6 +127,29 @@ void main() {
     );
   });
 
+  test('aborts an inference request when the configured timeout expires',
+      () async {
+    final pendingResponse = Completer<http.Response>();
+    final service = DetectionService(
+      baseUrl: 'http://visionassist.test',
+      requestTimeout: const Duration(milliseconds: 1),
+      client: MockClient((_) => pendingResponse.future),
+    );
+    addTearDown(service.close);
+
+    await expectLater(
+      service.analyze(Uint8List.fromList([1])),
+      throwsA(
+        isA<DetectionServiceException>().having(
+          (error) => error.message,
+          'message',
+          contains('timed out'),
+        ),
+      ),
+    );
+    pendingResponse.complete(http.Response('{}', 200));
+  });
+
   test('rejects malformed success responses instead of accepting partial data',
       () async {
     final service = DetectionService(

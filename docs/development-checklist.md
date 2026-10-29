@@ -43,11 +43,20 @@
 - [x] Pretrained ONNX detector produces real object detections
 - [x] Versioned detection response has validated bounding-box bounds
 - [x] API rejects unsupported image types and malformed image bytes
-- [x] Flutter sends a single temporary JPEG per explicit user action
-- [x] Flutter validates the response and displays loading, errors, empty results, and detections
+- [x] Flutter sends temporary JPEGs for user-requested or sampled analysis
+- [x] Flutter validates response shape, confidence values, and box coordinates
+- [x] Flutter displays loading, server/network errors, empty results, and detections
+- [x] Continuous sampling has a configurable interval and prevents overlapping requests
+- [x] Pause, resume, stop, backgrounding, and screen disposal stop sampling appropriately
+- [x] Concise factual summaries are shown and spoken without distance or hazard claims
+- [x] Speech can be replayed, muted, stopped, and adjusted for rate and volume
+- [x] Identical continuous summaries are not repeatedly announced
 - [x] No raw frame is persisted by the mobile client or AI service
+- [x] Python API and detector test suite passes in the current workspace
 - [ ] Flutter analyze and widget tests pass on the Windows development machine
 - [ ] One-shot camera-to-AI flow is verified on the physical Android phone
+- [ ] Continuous assistance, speech, and stop behavior are verified on the physical Android phone
+- [ ] `flutter build apk --debug` passes on the Windows development machine
 
 ## Per-milestone quality gate
 

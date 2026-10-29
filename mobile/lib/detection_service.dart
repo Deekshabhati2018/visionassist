@@ -60,7 +60,10 @@ class DetectionService implements DetectionClient {
   bool _closed = false;
 
   @override
-  Future<DetectionResult> analyze(Uint8List jpegBytes) async {
+  Future<DetectionResult> analyze(
+    Uint8List jpegBytes, {
+    Future<void>? abortTrigger,
+  }) async {
     _ensureOpen();
     if (jpegBytes.isEmpty) {
       throw const DetectionServiceException(
@@ -74,13 +77,14 @@ class DetectionService implements DetectionClient {
     }
 
     final normalizedBaseUrl = baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    final requestAbort = _linkAbort(abortTrigger);
 
     try {
       final endpoint = Uri.parse('$normalizedBaseUrl/inference/detect');
       final request = http.AbortableRequest(
         'POST',
         endpoint,
-        abortTrigger: abortTrigger,
+        abortTrigger: requestAbort.future,
       )
         ..headers['Content-Type'] = 'image/jpeg'
         ..bodyBytes = jpegBytes;
@@ -110,6 +114,7 @@ class DetectionService implements DetectionClient {
     } on http.RequestAbortedException {
       throw const DetectionRequestCancelled();
     } on TimeoutException {
+      _completeAbort(requestAbort);
       throw const DetectionServiceException(
         'The AI request timed out. Check the service connection and try again.',
       );
@@ -132,11 +137,12 @@ class DetectionService implements DetectionClient {
   Future<AiServiceHealth> checkHealth({Future<void>? abortTrigger}) async {
     _ensureOpen();
     final normalizedBaseUrl = baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    final requestAbort = _linkAbort(abortTrigger);
     try {
       final request = http.AbortableRequest(
         'GET',
         Uri.parse('$normalizedBaseUrl/health'),
-        abortTrigger: abortTrigger,
+        abortTrigger: requestAbort.future,
       );
       final response = await _send(request, timeout: healthTimeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -171,6 +177,7 @@ class DetectionService implements DetectionClient {
     } on http.RequestAbortedException {
       throw const DetectionRequestCancelled();
     } on TimeoutException {
+      _completeAbort(requestAbort);
       throw const DetectionServiceException(
         'The AI service did not respond to its health check. Confirm it is running and reachable.',
       );
@@ -197,6 +204,22 @@ class DetectionService implements DetectionClient {
         .send(request)
         .then(http.Response.fromStream)
         .timeout(timeout);
+  }
+
+  Completer<void> _linkAbort(Future<void>? externalAbort) {
+    final requestAbort = Completer<void>();
+    if (externalAbort != null) {
+      unawaited(
+        externalAbort.then<void>((_) => _completeAbort(requestAbort)),
+      );
+    }
+    return requestAbort;
+  }
+
+  void _completeAbort(Completer<void> abort) {
+    if (!abort.isCompleted) {
+      abort.complete();
+    }
   }
 
   void _ensureOpen() {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'assistance_widgets.dart';
 import 'camera_service.dart';
 import 'detection_service.dart';
 import 'scene_summary.dart';
@@ -81,10 +82,24 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
       return;
     }
 
-    if ((state == AppLifecycleState.inactive ||
-            state == AppLifecycleState.paused) &&
-        _continuousState == _ContinuousState.running) {
-      _pauseContinuousAssistance();
+    final appIsBackgrounded = state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden;
+    if (appIsBackgrounded) {
+      if (_continuousState == _ContinuousState.running) {
+        _pauseContinuousAssistance();
+      } else {
+        _abortRequests();
+        unawaited(_stopSpeech());
+      }
+      if (mounted) {
+        setState(() {
+          if (_aiConnectionState == _AiConnectionState.checking) {
+            _aiConnectionState = _AiConnectionState.unknown;
+          }
+          _isAnalyzing = false;
+        });
+      }
     }
     unawaited(_refreshCameraLifecycle(session, state));
   }
@@ -97,11 +112,18 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
       await session.handleLifecycle(state);
       if (mounted && identical(_cameraSession, session)) {
         setState(() {});
+        if (state == AppLifecycleState.resumed) {
+          unawaited(_refreshAiServiceHealth(session));
+        }
       }
     } catch (_) {
       _samplingTimer?.cancel();
       _samplingTimer = null;
       _abortAnalysis();
+      if (identical(_cameraSession, session)) {
+        _cameraSession = null;
+      }
+      unawaited(session.dispose());
       if (mounted) {
         setState(() {
           _sessionState = _SessionState.error;
@@ -559,327 +581,6 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
     }
   }
 
-  Widget _buildStatusPanel(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          children: [
-            _StatusRow(label: 'Camera', value: _cameraStatus),
-            const Divider(height: 1),
-            _StatusRow(label: 'AI service', value: _aiServiceStatus),
-            const Divider(height: 1),
-            _StatusRow(label: 'Analysis', value: _analysisStatus),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPreviewPanel(BuildContext context) {
-    final session = _cameraSession;
-    if (session == null) {
-      return const SizedBox.shrink();
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Live camera preview',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 12),
-            Semantics(
-              image: true,
-              label:
-                  'Live camera preview. VisionAssist does not save raw camera video by default.',
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: AspectRatio(
-                  aspectRatio: 3 / 4,
-                  child: ColoredBox(
-                    color: Colors.black,
-                    child: session.buildPreview(),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Frames are captured only for analysis, then the temporary image is deleted. The AI service does not retain camera images.',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContinuousControls(BuildContext context) {
-    final running = _continuousState == _ContinuousState.running;
-    final paused = _continuousState == _ContinuousState.paused;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Continuous assistance',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Samples one camera frame at a time. It does not measure distance, movement, or danger.',
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Expanded(child: Text('Sample interval')),
-                DropdownButton<int>(
-                  value: _sampleIntervalSeconds,
-                  onChanged: running
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            setState(() {
-                              _sampleIntervalSeconds = value;
-                            });
-                          }
-                        },
-                  items: const [3, 5, 10]
-                      .map(
-                        (seconds) => DropdownMenuItem<int>(
-                          value: seconds,
-                          child: Text('$seconds seconds'),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (_continuousState == _ContinuousState.stopped)
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _isAnalyzing ? null : _startContinuousAssistance,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Start Continuous Assistance'),
-                ),
-              )
-            else
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  if (running)
-                    OutlinedButton.icon(
-                      onPressed: _pauseContinuousAssistance,
-                      icon: const Icon(Icons.pause),
-                      label: const Text('Pause'),
-                    ),
-                  if (paused)
-                    FilledButton.icon(
-                      onPressed: _resumeContinuousAssistance,
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Resume'),
-                    ),
-                  OutlinedButton.icon(
-                    onPressed: _stopContinuousAssistance,
-                    icon: const Icon(Icons.stop),
-                    label: const Text('Stop Continuous'),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSpeechControls(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Voice assistance',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.icon(
-                  onPressed:
-                      _sceneSummary == null || _isMuted ? null : _speakCurrentSummary,
-                  icon: const Icon(Icons.volume_up),
-                  label: const Text('Speak Again'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _toggleMute,
-                  icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_mute),
-                  label: Text(_isMuted ? 'Unmute' : 'Mute'),
-                ),
-                if (_isSpeaking)
-                  TextButton.icon(
-                    onPressed: _stopSpeech,
-                    icon: const Icon(Icons.stop),
-                    label: const Text('Stop Speech'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Semantics(
-              label: 'Speech rate',
-              value: '${(_speechRate * 100).round()} percent',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Speech rate · ${(_speechRate * 100).round()}%'),
-                  Slider(
-                    min: 0.25,
-                    max: 0.75,
-                    divisions: 10,
-                    value: _speechRate,
-                    onChanged: (value) {
-                      setState(() {
-                        _speechRate = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Semantics(
-              label: 'Speech volume',
-              value: '${(_speechVolume * 100).round()} percent',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Speech volume · ${(_speechVolume * 100).round()}%'),
-                  Slider(
-                    min: 0,
-                    max: 1,
-                    divisions: 10,
-                    value: _speechVolume,
-                    onChanged: (value) {
-                      setState(() {
-                        _speechVolume = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            if (_speechMessage != null) ...[
-              const SizedBox(height: 8),
-              Semantics(
-                liveRegion: true,
-                label: 'Speech message: $_speechMessage',
-                child: Text(
-                  _speechMessage!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetectionResults(
-    BuildContext context,
-    DetectionResult result,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'AI frame analysis',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${result.detections.length} detections · ${result.inferenceMs.toStringAsFixed(0)} ms · ${result.model}',
-            ),
-            if (_sceneSummary != null) ...[
-              const SizedBox(height: 8),
-              Semantics(
-                liveRegion: true,
-                label: 'Scene summary: $_sceneSummary',
-                child: Text(
-                  _sceneSummary!,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            if (result.detections.isEmpty)
-              const Text('No objects detected in this frame.')
-            else
-              ...result.detections.take(8).map(
-                    (detection) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.visibility_outlined),
-                      title: Text(detection.label),
-                      subtitle: Text(
-                        '${(detection.confidence * 100).toStringAsFixed(0)}% confidence',
-                      ),
-                      trailing: Text(
-                        'x ${detection.boundingBox.xMin.toStringAsFixed(0)}–${detection.boundingBox.xMax.toStringAsFixed(0)}\n'
-                        'y ${detection.boundingBox.yMin.toStringAsFixed(0)}–${detection.boundingBox.yMax.toStringAsFixed(0)}',
-                        textAlign: TextAlign.end,
-                      ),
-                    ),
-                  ),
-            const SizedBox(height: 8),
-            const Text(
-              'Predictions may be wrong. Bounding boxes do not measure distance or danger. VisionAssist is not a certified mobility or safety device.',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMessage(String label, String message, BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Semantics(
-          liveRegion: true,
-          label: '$label: $message',
-          child: Text(message),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final session = _cameraSession;
@@ -906,18 +607,28 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
             const SizedBox(height: 12),
             Text(_sessionDescription, style: Theme.of(context).textTheme.bodyLarge),
             const SizedBox(height: 12),
-            _buildStatusPanel(context),
+            AssistanceStatusCard(
+              cameraStatus: _cameraStatus,
+              aiServiceStatus: _aiServiceStatus,
+              analysisStatus: _analysisStatus,
+            ),
             if (_cameraMessage != null) ...[
               const SizedBox(height: 12),
-              _buildMessage('Camera message', _cameraMessage!, context),
+              AssistanceMessageCard(
+                label: 'Camera message',
+                message: _cameraMessage!,
+              ),
             ],
             if (_serviceMessage != null) ...[
               const SizedBox(height: 12),
-              _buildMessage('AI service message', _serviceMessage!, context),
+              AssistanceMessageCard(
+                label: 'AI service message',
+                message: _serviceMessage!,
+              ),
             ],
-            const SizedBox(height: 16),
-            _buildPreviewPanel(context),
             if (session != null) ...[
+              const SizedBox(height: 16),
+              CameraPreviewCard(session: session),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -952,12 +663,49 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
               ],
               if (_detectionResult != null) ...[
                 const SizedBox(height: 12),
-                _buildDetectionResults(context, _detectionResult!),
+                DetectionResultsCard(
+                  result: _detectionResult!,
+                  summary: _sceneSummary,
+                ),
               ],
               const SizedBox(height: 12),
-              _buildSpeechControls(context),
+              VoiceAssistanceCard(
+                hasSummary: _sceneSummary != null,
+                isMuted: _isMuted,
+                isSpeaking: _isSpeaking,
+                speechRate: _speechRate,
+                speechVolume: _speechVolume,
+                message: _speechMessage,
+                onSpeakAgain: _speakCurrentSummary,
+                onToggleMute: _toggleMute,
+                onStopSpeech: _stopSpeech,
+                onSpeechRateChanged: (value) {
+                  setState(() {
+                    _speechRate = value;
+                  });
+                },
+                onSpeechVolumeChanged: (value) {
+                  setState(() {
+                    _speechVolume = value;
+                  });
+                },
+              ),
               const SizedBox(height: 12),
-              _buildContinuousControls(context),
+              ContinuousAssistanceCard(
+                running: _continuousState == _ContinuousState.running,
+                paused: _continuousState == _ContinuousState.paused,
+                isAnalyzing: _isAnalyzing,
+                sampleIntervalSeconds: _sampleIntervalSeconds,
+                onIntervalChanged: (seconds) {
+                  setState(() {
+                    _sampleIntervalSeconds = seconds;
+                  });
+                },
+                onStart: _startContinuousAssistance,
+                onPause: _pauseContinuousAssistance,
+                onResume: _resumeContinuousAssistance,
+                onStop: _stopContinuousAssistance,
+              ),
             ],
             const SizedBox(height: 24),
             Card(
@@ -1006,29 +754,6 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: '$label status: $value',
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(child: Text(label)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
       ),

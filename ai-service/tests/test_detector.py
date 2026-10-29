@@ -122,6 +122,24 @@ class DetectorMathTests(unittest.TestCase):
 
         self.assertEqual(len(detections), 1)
 
+    def test_decoder_ignores_out_of_range_confidence_scores(self) -> None:
+        raw_output = np.zeros((1, 2, 85), dtype=np.float32)
+        raw_output[0, 0, :5] = [320, 320, 160, 160, 1.2]
+        raw_output[0, 0, 5] = 0.9
+        raw_output[0, 1, :5] = [320, 320, 160, 160, 0.9]
+        raw_output[0, 1, 5] = 0.9
+
+        detections = decode_predictions(
+            raw_output,
+            image_width=640,
+            image_height=640,
+            confidence_threshold=0.5,
+            iou_threshold=0.45,
+        )
+
+        self.assertEqual(len(detections), 1)
+        self.assertAlmostEqual(detections[0].confidence, 0.81, places=3)
+
     def test_decoder_rejects_unexpected_class_output_width(self) -> None:
         with self.assertRaises(ModelNotReadyError):
             decode_predictions(

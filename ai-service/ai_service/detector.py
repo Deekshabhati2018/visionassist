@@ -217,12 +217,14 @@ def decode_predictions(
     finite_rows = np.isfinite(predictions).all(axis=1)
     objectness = predictions[:, 4]
     class_probabilities = predictions[:, 5:]
+    score_values = predictions[:, 4:]
+    valid_scores = np.all((score_values >= 0) & (score_values <= 1), axis=1)
     class_ids = np.argmax(class_probabilities, axis=1)
     confidences = objectness * class_probabilities[
         np.arange(len(class_probabilities)), class_ids
     ]
     candidate_indexes = np.flatnonzero(
-        finite_rows & (confidences >= confidence_threshold)
+        finite_rows & valid_scores & (confidences >= confidence_threshold)
     )
     if len(candidate_indexes) == 0:
         return []
