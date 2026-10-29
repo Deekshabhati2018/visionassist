@@ -34,6 +34,7 @@ void main() {
     expect(find.text('Camera'), findsOneWidget);
     expect(find.text('AI service'), findsOneWidget);
     expect(find.text('Analysis'), findsOneWidget);
+    await _expectVisible(tester, 'Analyze Current Frame');
     expect(find.text('Analyze Current Frame'), findsOneWidget);
   });
 
@@ -58,11 +59,7 @@ void main() {
       find.text('Camera permission was denied in this test.'),
       findsOneWidget,
     );
-    await tester.scrollUntilVisible(
-      find.text('Start Assistance'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await _expectVisible(tester, 'Start Assistance');
     expect(find.text('Start Assistance'), findsOneWidget);
   });
 
@@ -86,6 +83,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await _expectVisible(tester, 'The AI service is offline.');
     expect(find.text('The AI service is offline.'), findsOneWidget);
     expect(find.text('Analyze Current Frame'), findsOneWidget);
   });
@@ -105,10 +103,9 @@ void main() {
     await _tapText(tester, 'Analyze Current Frame');
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.text('The model detected 2 objects: 2 detections labeled person.'),
-      200,
-      scrollable: find.byType(Scrollable).first,
+    await _expectVisible(
+      tester,
+      'The model detected 2 objects: 2 detections labeled person.',
     );
     expect(
       find.text('The model detected 2 objects: 2 detections labeled person.'),
@@ -133,9 +130,10 @@ void main() {
     final sliders = find.byType(Slider);
     await tester.scrollUntilVisible(
       sliders.first,
-      200,
+      80,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(sliders.first);
     await tester.drag(sliders.first, const Offset(60, 0));
     await tester.pumpAndSettle();
     await tester.drag(sliders.last, const Offset(-60, 0));
@@ -182,11 +180,7 @@ void main() {
     await tester.pumpAndSettle();
     firstAnalysis.complete(sampleResult());
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('Paused'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await _expectVisible(tester, 'Paused');
     expect(find.text('Paused'), findsOneWidget);
 
     await _tapText(tester, 'Resume');
@@ -199,11 +193,7 @@ void main() {
     final stoppedCaptureCount = camera.session.captureCount;
     await tester.pump(const Duration(seconds: 12));
     expect(camera.session.captureCount, stoppedCaptureCount);
-    await tester.scrollUntilVisible(
-      find.text('Start Continuous Assistance'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await _expectVisible(tester, 'Start Continuous Assistance');
     expect(find.text('Start Continuous Assistance'), findsOneWidget);
   });
 
@@ -255,10 +245,23 @@ Future<void> _tapText(WidgetTester tester, String label) async {
   final finder = find.text(label);
   await tester.scrollUntilVisible(
     finder,
-    200,
+    80,
     scrollable: find.byType(Scrollable).first,
   );
+  await tester.ensureVisible(finder);
+  await tester.pump();
   await tester.tap(finder);
+}
+
+Future<void> _expectVisible(WidgetTester tester, String label) async {
+  final finder = find.text(label);
+  await tester.scrollUntilVisible(
+    finder,
+    80,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.ensureVisible(finder);
+  await tester.pump();
 }
 
 DetectionResult sampleResult({int people = 1}) {
@@ -412,3 +415,5 @@ class FakeSpeechService implements SpeechService {
     await stop();
   }
 }
+
+
