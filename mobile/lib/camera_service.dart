@@ -124,7 +124,8 @@ class FlutterCameraSession implements CameraSession {
   @override
   Future<void> handleLifecycle(AppLifecycleState state) async {
     if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
       await _disposeController();
       return;
     }
