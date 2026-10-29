@@ -18,15 +18,15 @@ Android camera
 The first meaningful demo is intentionally small:
 
 ```text
-Start Assistance -> test frame -> detection -> priority decision
--> one spoken message -> saved event -> dashboard history
+Start Assistance -> capture frame -> pretrained object detection
+-> concise scene summary -> spoken guidance
 ```
 
 ## Repository map
 
 | Area | Purpose | Status |
 | --- | --- | --- |
-| `mobile/` | Flutter Android application | Shell + camera preview milestone |
+| `mobile/` | Flutter Android application | Real detection, voice summaries, and sampled continuous assistance |
 | `ai-service/` | Python computer-vision service | Pretrained detection endpoint |
 | `backend/` | Spring Boot API | Foundation placeholder |
 | `web-dashboard/` | React dashboard | Foundation placeholder |
@@ -48,9 +48,10 @@ pnpm run build
 The current API health check is available through the preview at `GET /api/healthz`.
 
 The pretrained object detector and its `POST /inference/detect` contract are
-documented in [`ai-service/README.md`](ai-service/README.md). It can run locally
-on a development computer and accept one camera frame at a time from the
-Android app.
+documented in [`ai-service/README.md`](ai-service/README.md). Run it locally on
+a development computer and connect the Android app over a trusted Wi-Fi LAN.
+Windows setup, Android HTTP requirements, and manual device checks are in
+[`mobile/README.md`](mobile/README.md).
 
 ## Getting started
 
