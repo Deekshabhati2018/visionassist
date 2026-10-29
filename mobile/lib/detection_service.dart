@@ -119,15 +119,15 @@ class DetectionService implements DetectionClient {
         'The AI request timed out. Check the service connection and try again.',
       );
     } on http.ClientException {
-      throw DetectionServiceException(
+      throw const DetectionServiceException(
         'Could not reach the AI service at $baseUrl. Confirm the service is running and the phone can reach that address.',
       );
     } on FormatException {
-      throw DetectionServiceException(
+      throw const DetectionServiceException(
         'The AI service address is invalid. Check VISIONASSIST_AI_BASE_URL.',
       );
     } on Exception {
-      throw DetectionServiceException(
+      throw const DetectionServiceException(
         'The AI request did not finish. Check the network connection and try again.',
       );
     }
@@ -409,3 +409,5 @@ class DetectionBoundingBox {
     );
   }
 }
+
+
