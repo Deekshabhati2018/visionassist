@@ -643,7 +643,7 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
                       : const Icon(Icons.search),
                   label: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                   child: const Text(
+                    child: Text(
                       _isAnalyzing
                           ? 'Analyzing frame…'
                           : 'Analyze Current Frame',
