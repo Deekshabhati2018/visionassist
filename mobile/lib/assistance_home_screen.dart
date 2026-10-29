@@ -643,7 +643,7 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
                       : const Icon(Icons.search),
                   label: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    child: Text(
+                   child: const Text(
                       _isAnalyzing
                           ? 'Analyzing frame…'
                           : 'Analyze Current Frame',
@@ -656,7 +656,7 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
                 Semantics(
                   liveRegion: true,
                   label: 'Analyzing the captured frame with the AI service.',
-                  child: Text(
+                  child: const Text(
                     'Sending one captured frame to the detector. The first request may take longer while the model loads.',
                   ),
                 ),
