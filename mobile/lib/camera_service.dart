@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart' as camera;
@@ -117,7 +118,7 @@ class FlutterCameraSession implements CameraSession {
     try {
       return await image.readAsBytes();
     } finally {
-      await image.delete();
+      await File(image.path).delete();
     }
   }
 
@@ -157,3 +158,4 @@ String _cameraErrorMessage(camera.CameraException error) {
       return 'The camera could not be started. Check the device and try again.';
   }
 }
+
