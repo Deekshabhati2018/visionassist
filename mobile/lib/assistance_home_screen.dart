@@ -653,7 +653,7 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
               ),
               if (_isAnalyzing) ...[
                 const SizedBox(height: 12),
-                const Semantics(
+                Semantics(
                   liveRegion: true,
                   label: 'Analyzing the captured frame with the AI service.',
                   child: Text(
@@ -760,3 +760,5 @@ class _AssistanceHomeScreenState extends State<AssistanceHomeScreen>
     );
   }
 }
+
+
