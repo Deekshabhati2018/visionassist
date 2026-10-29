@@ -119,7 +119,7 @@ class DetectionService implements DetectionClient {
         'The AI request timed out. Check the service connection and try again.',
       );
     } on http.ClientException {
-      throw const DetectionServiceException(
+      throw DetectionServiceException(
         'Could not reach the AI service at $baseUrl. Confirm the service is running and the phone can reach that address.',
       );
     } on FormatException {
@@ -190,7 +190,7 @@ class DetectionService implements DetectionClient {
         'The AI service returned an invalid health response: ${error.message}',
       );
     } on Exception {
-      throw DetectionServiceException(
+      throw const DetectionServiceException(
         'The AI service health check failed. Check the network connection and try again.',
       );
     }
