@@ -69,12 +69,13 @@ The implementation must also apply alert cooldowns and persistence windows. It m
 
 1. The mobile app requests explicit camera permission.
 2. Assistance starts only after the user activates it.
-3. A frame or selected frame sample is sent to the AI service.
-4. The AI service returns structured observations: class, confidence, bounding box, tracking identity, and optional relative depth.
-5. The decision engine adds frame position, persistence, path relevance, motion, and recent-alert context.
-6. A high-priority event becomes a short spoken message and a minimal event record.
-7. The backend stores the event and session metadata.
-8. The dashboard reads event history and aggregate analytics.
+3. A captured frame or selected continuous sample is sent to the AI service. Sampling is configurable and requests do not overlap.
+4. The AI service returns structured observations: class, confidence, and pixel-coordinate bounding box.
+5. The mobile app combines labels into a concise factual scene summary. It does not infer distance, approach, path relevance, or danger from ordinary boxes.
+6. Mobile text-to-speech announces new summaries with repeat suppression; the user can replay, mute, adjust rate/volume, pause, or stop.
+7. A future decision engine may add persistence, path relevance, motion, and recent-alert context after those capabilities are implemented and validated.
+8. The backend can later store event and session metadata; the current mobile AI milestone does not persist camera frames or detection history.
+9. The dashboard reads event history and aggregate analytics when backend persistence is implemented.
 
 ## Planned API boundaries
 
